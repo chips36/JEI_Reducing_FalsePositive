@@ -138,4 +138,4 @@ corresponding author upon reasonable request.
 
 ## Contact
 
-Daeseon Choi (corresponding author) — sunchoi@ssu.ac.kr
+Noh SeongUn — chips36@naver.com
