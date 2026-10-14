@@ -52,7 +52,7 @@ Weights are not included in this repository. Place them in the project root:
 
 | File | Description |
 |------|-------------|
-| `best.pt` | YOLOv8n chest detector fine-tuned on the NudeNet Detector Auto-Generated Data (200 epochs, 640x640, AdamW, batch 16, lr 0.01, 8:2 split). Available from the corresponding author upon reasonable request. |
+| `best.pt` | YOLOv8n chest detector fine-tuned on the NudeNet Detector Auto-Generated Data (200 epochs, 640x640, AdamW, batch 16, lr 0.01, 8:2 split). Available from Noh SeongUn (chips36@naver.com) upon reasonable request. |
 | `yolov8n-pose.pt` | Ultralytics YOLOv8n-pose (downloaded automatically by `ultralytics`). |
 | `yolov8l-face.pt` | YOLOv8l-face detector. |
 
@@ -114,8 +114,8 @@ Datasets are not redistributed in this repository.
 - **Video clips:** Unsplash image-to-video clips (Gemini, Veo 3.1) and WWE broadcast segments.
   WWE footage cannot be redistributed due to licensing restrictions.
 
-Evaluation metadata, data-split seeds, and annotation guidelines are available from the
-corresponding author upon reasonable request.
+Evaluation metadata, data-split seeds, and annotation guidelines are available from
+Noh SeongUn (chips36@naver.com) upon reasonable request.
 
 ## Ethical considerations
 
