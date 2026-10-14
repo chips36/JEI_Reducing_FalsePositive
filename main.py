@@ -426,16 +426,14 @@ class BodybuildingExperiment:
     def classify_gender_from_face(self, img, face_box):
         """Classify the perceived gender of a face crop with DeepFace.
 
+        The crop is passed to DeepFace as an in-memory BGR array and is never written to disk.
         Returns (dominant_gender, confidence in [0, 1]) or ('Unknown', 0.0) on failure.
         """
         try:
             x1, y1, x2, y2 = map(int, face_box)
             face_img = img[max(0, y1):min(img.shape[0], y2), max(0, x1):min(img.shape[1], x2)]
             if face_img.size == 0: return 'Unknown', 0.0
-            temp_path = f'temp_face_{np.random.randint(1000)}.jpg'
-            cv2.imwrite(temp_path, face_img)
-            analysis = DeepFace.analyze(temp_path, actions=['gender'], enforce_detection=False, silent=True)
-            if os.path.exists(temp_path): os.remove(temp_path)
+            analysis = DeepFace.analyze(face_img, actions=['gender'], enforce_detection=False, silent=True)
             res = analysis[0]
             return res['dominant_gender'], res['gender'][res['dominant_gender']] / 100.0
         except:
@@ -632,7 +630,7 @@ if __name__ == "__main__":
     experiment = BodybuildingExperiment(
         input_path=INPUT_DIR,
         output_path=OUTPUT_DIR,
-        confidence_threshold=0.6,
+        confidence_threshold=0.9,  # Operating threshold tau selected on the validation set
         detector_type='yolo',  # 'yolo' uses the fine-tuned YOLOv8 model, 'nudenet' uses NudeNet
         breast_model_path='best.pt'
     )
