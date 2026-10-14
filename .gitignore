@@ -1,0 +1,37 @@
+# 데이터셋 / 결과 폴더
+AI/
+ai_gen/
+bodybuilding_dataset/
+filtered_results/
+filtered_results_NUDENET_TEST/
+hmdb51_data/
+images/
+male_breast/
+MALE_DATASETS_300/
+output/
+output_folder/
+research_videos_v1/
+runs/
+wwe_research_data/
+_OUT_exp_results_AI_GEN/
+_OUT_results_FILTERED/
+
+# 모델 가중치
+*.pt
+*.pth
+*.onnx
+
+# 이미지 / 영상 결과물
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.avi
+
+# IDE / 파이썬 부산물
+.idea/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
