@@ -25,6 +25,7 @@ decision is kept, so the secondary stage can never add a block.
 | File | Description | Paper |
 |------|-------------|-------|
 | `static_image_evaluation.py` | Full pipeline (`BodybuildingExperiment`) for static-image evaluation with a YOLOv8 or NudeNet primary detector; also contains data preparation utilities (Unsplash collection, NudeNet annotation filtering, baseline inference). | Sec. 3, Sec. 4.1-4.2 |
+| `pose_guided_matching.py` | Pose-guided face-chest matching: IoA-based skeleton assignment and the shoulder-line constraint (`alpha = 0.6`, `beta_min = 0.2`, `beta_max = 1.2`). Run it directly for a synthetic sanity check. | Sec. 3.3, Eqs. (1)-(3) |
 | `table1_multi_person_matching.py` | Multi-person face-chest matching experiment comparing detection confidence-based, center distance-based, and pose-guided assignment. | Sec. 3.3, Table 1, Fig. 2 |
 | `fig3_confusion_matrix_baseline.py` | Confusion matrices of the YOLOv8 / NudeNet baselines. | Fig. 3 |
 | `fig3_confusion_matrix_proposed.py` | Confusion matrices of the proposed method at `tau = 0.90`. | Fig. 3 |
