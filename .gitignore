@@ -35,3 +35,7 @@ __pycache__/
 .venv/
 venv/
 .env
+
+# Local-only scripts unrelated to the paper
+HMDB51.py
+fig_spoofing.py

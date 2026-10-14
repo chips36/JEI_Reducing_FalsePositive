@@ -3,14 +3,15 @@ import seaborn as sns
 import numpy as np
 
 
-# 1. 최적 임계값(0.9) 기준 데이터 설정
-# 여성 데이터 (GT: Female) -> TP: 293, FN: 7
-# 남성 데이터 (GT: Male)   -> TN: 269, FP: 21
+# 1. Data at the optimal threshold (0.9), YOLOv8 + proposed method
+# Female data (GT: Female) -> TP: 293, FN: 7
+# Male data   (GT: Male)   -> TN: 269, FP: 21
 
-# 행렬 구성: [[TP, FN], [FP, TN]] 형태 (일반적인 논문 형식)
-# 또는 [[True Female/Pred Female, True Female/Pred Male], [True Male/Pred Female, True Male/Pred Male]]
+# Matrix layout: [[TP, FN], [FP, TN]] (common paper format)
+# i.e. [[True Female/Pred Female, True Female/Pred Male], [True Male/Pred Female, True Male/Pred Male]]
 
 def plot_confusion_matrix(data, title, filename, labels=['Female', 'Male']):
+    """Draw a 2x2 confusion matrix heatmap and save it as an image."""
     plt.figure(figsize=(7, 6))
     sns.heatmap(data, annot=True, fmt='d', cmap='Blues', cbar=False,
                 xticklabels=['Pred Female', 'Pred Male'],
@@ -27,18 +28,18 @@ def plot_confusion_matrix(data, title, filename, labels=['Female', 'Male']):
     plt.show()
 
 
-# --- 1. 여성 데이터 전용 혼동 행렬 ---
-# (실제 여성 300장 중 분류 결과)
-female_cm = np.array([[293, 7], [0, 0]])  # 남성 데이터가 유입되지 않은 상태의 테스트
+# --- 1. Confusion matrix for the female dataset only ---
+# (classification results of the 300 actual female images)
+female_cm = np.array([[293, 7], [0, 0]])  # Test without any male data
 plot_confusion_matrix(female_cm, 'Confusion Matrix (Female Dataset Only)', 'cm_female.png')
 
-# --- 2. 남성 데이터 전용 혼동 행렬 ---cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-# (실제 남성 290장 중 분류 결과)
-male_cm = np.array([[0, 0], [21, 269]])  # 여성 데이터가 유입되지 않은 상태의 테스트
+# --- 2. Confusion matrix for the male dataset only ---
+# (classification results of the 290 detected male images)
+male_cm = np.array([[0, 0], [21, 269]])  # Test without any female data
 plot_confusion_matrix(male_cm, 'Confusion Matrix (Male Dataset Only)', 'cm_male.png')
 
-# --- 3. 통합 혼동 행렬 (가장 중요) ---
-# 전체 590장 데이터를 한꺼번에 평가했을 때
-combined_cm = np.array([[293, 7],  # 실제 여성 -> (TP, FN)
-                        [21, 269]])  # 실제 남성 -> (FP, TN)
+# --- 3. Combined confusion matrix (most important) ---
+# All 590 images evaluated together
+combined_cm = np.array([[293, 7],  # Actual female -> (TP, FN)
+                        [21, 269]])  # Actual male -> (FP, TN)
 plot_confusion_matrix(combined_cm, 'Total Combined Confusion Matrix (Threshold 0.9)', 'cm_combined.png')

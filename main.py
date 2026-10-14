@@ -11,17 +11,18 @@ import numpy as np
 import time
 
 def run_inference(model_path, source_dir, save_dir):
-    # 1. 모델 로드
+    """Run the YOLOv8 chest detector on every image in a folder and save annotated results."""
+    # 1. Load the model
     model = YOLO(model_path)
 
-    # 2. 결과 저장 디렉토리 생성
+    # 2. Create the output directory
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    # 3. 폴더 내 이미지들에 대해 추론 수행
-    # conf: 0.25 (신뢰도 임계값, 필요에 따라 조절 가능)
-    # save: True (결과 이미지를 자동으로 저장)
-    # project/name: 저장될 경로 설정
+    # 3. Run inference on all images in the folder
+    # conf: confidence score threshold (adjust as needed)
+    # save: True (automatically save annotated result images)
+    # project/name: output location of the saved results
     results = model.predict(
         source=source_dir,
         conf=0.50,
@@ -35,31 +36,32 @@ def run_inference(model_path, source_dir, save_dir):
 
 
 def save_thick_pose_estimation(image_source):
-    # 1. 모델 로드
+    """Visualize YOLOv8-pose skeletons with thick lines (used for the paper figures)."""
+    # 1. Load the pose model
     model = YOLO('yolov8n-pose.pt')
 
-    # 2. 이미지 추론
+    # 2. Run inference on the image
     results = model(image_source, conf=0.5)
 
     for i, r in enumerate(results):
-        # 3. 결과 이미지 생성 (굵기 조절 파라미터 추가)
-        # line_width: 선의 굵기 (정수)
-        # kpt_radius: 관절 포인트(점)의 크기 (정수)
+        # 3. Render the result image with custom thickness parameters
+        # line_width: skeleton line thickness (int)
+        # kpt_radius: keypoint marker radius (int)
         annotated_frame = r.plot(
-            line_width=8,  # 선의 굵기를 8로 설정 (기존보다 훨씬 굵음)
-            kpt_radius=10,  # 관절 점의 크기를 10으로 설정
-            labels=False,  # 클래스/정확도 라벨 표시 여부
-            boxes=False  # 바운딩 박스 표시 여부
+            line_width=8,  # Much thicker than the default line width
+            kpt_radius=10,  # Keypoint marker size
+            labels=False,  # Hide class/confidence labels
+            boxes=False  # Hide bounding boxes
         )
 
-        # 4. 출력 파일명 설정
+        # 4. Build the output file name
         if isinstance(image_source, str):
             base_name = os.path.splitext(os.path.basename(image_source))[0]
             output_path = f"{base_name}_thick_result.jpg"
         else:
             output_path = f"result_{i}.jpg"
 
-        # 5. 이미지 파일 저장
+        # 5. Save the image file
         success = cv2.imwrite(output_path, annotated_frame)
 
         if success:
@@ -69,7 +71,8 @@ def save_thick_pose_estimation(image_source):
 
 
 def run_nudenet_detection(source_dir, save_dir):
-    # 1. NudeNet Detector 초기화
+    """Run the NudeNet baseline detector on a folder and save images with colored boxes."""
+    # 1. Initialize the NudeNet detector
     detector = NudeDetector()
 
     if not os.path.exists(save_dir):
@@ -91,19 +94,19 @@ def run_nudenet_detection(source_dir, save_dir):
             box = det['box']  # [x_min, y_min, width, height]
             x, y, w, h = [int(v) for v in box]
 
-            # --- 색상 조건 설정 (BGR 순서) ---
+            # --- Box color per class (BGR order) ---
             if label == 'MALE_BREAST_EXPOSED':
-                color = (255, 0, 0)  # 파란색 (Blue)
+                color = (255, 0, 0)  # Blue
             elif label == 'FEMALE_BREAST_EXPOSED':
-                color = (0, 0, 255)  # 빨간색 (Red)
+                color = (0, 0, 255)  # Red
             else:
-                color = (0, 255, 0)  # 나머지 초록색 (Green)
+                color = (0, 255, 0)  # Green for all other classes
             # ------------------------------
 
-            # 바운딩 박스 그리기 (설정된 color 적용)
+            # Draw the bounding box with the selected color
             cv2.rectangle(image, (x, y), (x + w, y + h), color, 2)
 
-            # 라벨 및 점수 표시
+            # Draw the label and score
             text = f"{label}: {score:.2f}"
             cv2.putText(image, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
@@ -113,17 +116,19 @@ def run_nudenet_detection(source_dir, save_dir):
 
 
 def extract_male_breast_images(csv_path, source_img_dir, output_dir):
-    # 1. 어노테이션 파일 로드
+    """Copy images that contain the EXPOSED_BREAST_M class from the NudeNet
+    Detector Auto-Generated Data annotations into a separate folder."""
+    # 1. Load the annotation file
     df = pd.read_csv(csv_path, header=None,
                      names=['image_path', 'x_min', 'y_min', 'x_max', 'y_max', 'class_name'])
 
-    # 2. 'EXPOSED_BREAST_M' 클래스만 필터링
+    # 2. Keep only the 'EXPOSED_BREAST_M' class
     male_breast_df = df[df['class_name'] == 'EXPOSED_BREAST_M']
 
-    # 3. 중복 이미지 제거 (한 이미지에 여러 번 탐지된 경우 대비)
+    # 3. Remove duplicate images (one image may contain multiple annotations)
     unique_images = male_breast_df['image_path'].unique()
 
-    # 4. 출력 폴더 생성
+    # 4. Create the output folder
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"폴더 생성 완료: {output_dir}")
@@ -132,42 +137,43 @@ def extract_male_breast_images(csv_path, source_img_dir, output_dir):
 
     copy_count = 0
     for img_path in unique_images:
-        # 파일명만 추출 (예: IMAGES/abc.jpg -> abc.jpg)
+        # Extract the file name only (e.g. IMAGES/abc.jpg -> abc.jpg)
         img_filename = os.path.basename(img_path)
         src_path = os.path.join(source_img_dir, img_filename)
         dst_path = os.path.join(output_dir, img_filename)
 
-        # 파일이 실제로 존재할 때만 복사
+        # Copy only if the file actually exists
         if os.path.exists(src_path):
             shutil.copy(src_path, dst_path)
             copy_count += 1
         else:
-            # 원본 경로가 다를 경우를 대비해 알림
+            # The source path may differ from the annotation path
             # print(f"파일을 찾을 수 없음: {src_path}")
             pass
 
     print(f"작업 완료: 총 {copy_count}장의 이미지가 '{output_dir}' 폴더에 저장되었습니다.")
 
 
-# 1. 설정 (Access Key는 환경변수 UNSPLASH_ACCESS_KEY에서 읽음)
+# 1. Unsplash download settings (the Access Key is read from the UNSPLASH_ACCESS_KEY environment variable)
 ACCESS_KEY = os.environ["UNSPLASH_ACCESS_KEY"]
 QUERY = 'bodybuilder shirtless portrait'
 SAVE_FOLDER = 'bodybuilding_dataset'
 TOTAL_IMAGES = 1000
-PER_PAGE = 30  # 한 페이지당 가져올 이미지 수 (최대 30)
+PER_PAGE = 30  # Number of images per page (max 30)
 
 if not os.path.exists(SAVE_FOLDER):
     os.makedirs(SAVE_FOLDER)
 
 
 def download_images():
+    """Collect male-chest images through the Unsplash developer API."""
     downloaded_count = 0
     page = 1
 
     print(f"데이터 수집 시작: {QUERY}...")
 
     while downloaded_count < TOTAL_IMAGES:
-        # Unsplash API 호출
+        # Call the Unsplash search API
         url = f"https://api.unsplash.com/search/photos?query={QUERY}&client_id={ACCESS_KEY}&per_page={PER_PAGE}&page={page}"
         response = requests.get(url)
 
@@ -186,7 +192,7 @@ def download_images():
             if downloaded_count >= TOTAL_IMAGES:
                 break
 
-            # 고화질 이미지 URL 선택 (regular 또는 full)
+            # Use the high-resolution image URL ('regular' or 'full')
             img_url = photo['urls']['regular']
             img_id = photo['id']
 
@@ -206,20 +212,21 @@ def download_images():
 
 def filter_adult_content_images(source_folder, output_folder, face_model_path, breast_model_path):
     """
-    얼굴이 1개 이상 검출되고, 동시에 남성/여성 가슴이 검출되는 이미지를 필터링하여 저장합니다.
+    Keep only images in which at least one face and a male/female chest are both detected,
+    and copy them to the output folder.
     """
-    # 1. 결과 폴더 생성
+    # 1. Create the output folder
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    # 2. 모델 로드
+    # 2. Load the models
     face_model = YOLO(face_model_path)
     breast_model = YOLO(breast_model_path)
 
-    # 제공된 yaml 기준 타겟 클래스 인덱스 (1: EXPOSED_BREAST_F, 2: EXPOSED_BREAST_M)
+    # Target class indices from the dataset yaml (1: EXPOSED_BREAST_F, 2: EXPOSED_BREAST_M)
     target_classes = [1, 2]
 
-    # 3. 대상 이미지 확장자 설정
+    # 3. Supported image extensions
     valid_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
     image_files = [f for f in os.listdir(source_folder) if f.lower().endswith(valid_extensions)]
 
@@ -229,16 +236,16 @@ def filter_adult_content_images(source_folder, output_folder, face_model_path, b
     for file_name in image_files:
         file_path = os.path.join(source_folder, file_name)
 
-        # 얼굴 검출 수행
+        # Run face detection
         face_results = face_model(file_path, verbose=False)
 
-        # 얼굴이 1개 이상인 경우에만 다음 단계 진행
+        # Continue only if at least one face is detected
         if len(face_results[0].boxes) >= 1:
-            # 가슴 검출 수행
+            # Run chest detection
             breast_results = breast_model(file_path, verbose=False)
             detected_classes = breast_results[0].boxes.cls.tolist()
 
-            # 클래스 1(여성 가슴) 또는 2(남성 가슴)가 포함되어 있는지 확인
+            # Check whether class 1 (female chest) or 2 (male chest) is present
             if any(cls in target_classes for cls in detected_classes):
                 shutil.copy(file_path, os.path.join(output_folder, file_name))
                 count += 1
@@ -250,14 +257,18 @@ def filter_adult_content_images(source_folder, output_folder, face_model_path, b
 #####################################################################################################################################\
 
 class BodybuildingExperiment:
+    """Static-image experiment for the proposed multi-stage verification pipeline:
+    chest detection -> pose estimation -> face detection -> DeepFace gender verification.
+    Images are sorted into man/woman/unknown folders according to the final decision."""
+
     def __init__(self, input_path, output_path, confidence_threshold=0.90,
-                 detector_type='yolo',  # 'yolo' 또는 'nudenet' 선택 가능
+                 detector_type='yolo',  # Primary chest detector: 'yolo' or 'nudenet'
                  breast_model_path='best.pt', face_model_path='yolov8l-face.pt'):
         self.input_path = input_path
         self.output_path = output_path
         self.detector_type = detector_type.lower()
 
-        # 1. 모델 로드
+        # 1. Load the models
         if self.detector_type == 'yolo':
             self.breast_model = YOLO(breast_model_path)
             print(f"🚀 YOLO 엔진 로드 완료: {breast_model_path}")
@@ -268,7 +279,7 @@ class BodybuildingExperiment:
         self.face_model = YOLO(face_model_path)
         self.pose_model = YOLO('yolov8n-pose.pt')
 
-        # 클래스 정의 (기존 체계 유지)
+        # Class IDs of the fine-tuned YOLOv8 chest detector
         self.BELLY = 0
         self.BREAST_F = 1
         self.BREAST_M = 2
@@ -276,7 +287,7 @@ class BodybuildingExperiment:
         self.GENITALIA_F = 4
         self.GENITALIA_M = 5
 
-        # NudeNet 라벨 -> 내부 클래스 ID 매핑 (NudeNet 결과 해석용)
+        # NudeNet label -> internal class ID mapping (used to interpret NudeNet outputs)
         self.NUDENET_MAP = {
             'FEMALE_BREAST_EXPOSED': self.BREAST_F,
             'FEMALE_BREAST_COVERED': self.BREAST_F,
@@ -286,9 +297,10 @@ class BodybuildingExperiment:
             'MALE_GENITALIA_EXPOSED': self.GENITALIA_M
         }
 
+        # Gender confidence threshold (tau) required to override the detector decision
         self.DEEPFACE_CONFIDENCE_THRESHOLD = confidence_threshold
 
-        # 폴더 초기화
+        # Create the output folders
         self.folders = {
             'Man': os.path.join(output_path, 'man'),
             'Woman': os.path.join(output_path, 'woman'),
@@ -298,6 +310,7 @@ class BodybuildingExperiment:
             os.makedirs(folder, exist_ok=True)
 
     def breast_class_to_gender(self, breast_class):
+        """Map a chest class ID to the gender implied by the primary detector."""
         if breast_class == self.BREAST_F:
             return 'Woman'
         elif breast_class == self.BREAST_M:
@@ -305,7 +318,7 @@ class BodybuildingExperiment:
         return 'Unknown'
 
     def _detect_with_yolo(self, img):
-        """기존 YOLO 기반 검출 로직"""
+        """Chest detection with the fine-tuned YOLOv8 model."""
         results = self.breast_model(img, verbose=False)[0]
         if len(results.boxes) == 0:
             return None
@@ -317,29 +330,30 @@ class BodybuildingExperiment:
 
         for box, conf, cls in zip(boxes, confidences, classes):
             cls_int = int(cls)
+            # Keep chest classes only
             if cls_int in [self.BREAST_F, self.BREAST_M]:
                 detections.append({'box': box, 'confidence': conf, 'class': cls_int})
         return detections
 
     def _detect_with_nudenet(self, img_path):
-        """NudeNet 기반 검출 로직 (에러 방지 버전)"""
+        """Chest detection with NudeNet (robust to output format differences between versions)."""
         try:
-            # NudeNet의 최신 버전은 결과가 리스트 형태로 반환됩니다.
+            # Recent NudeNet versions return a list of detections
             raw_results = self.nude_detector.detect(img_path)
 
             detections = []
             for res in raw_results:
-                # 버전마다 'label' 또는 'class' 키를 사용할 수 있으므로 체크
+                # Depending on the version, the key may be 'label' or 'class'
                 label = res.get('label') or res.get('class')
                 score = res.get('score') or res.get('confidence', 0.0)
                 box = res.get('box')
 
                 if label and label in self.NUDENET_MAP:
                     mapped_cls = self.NUDENET_MAP[label]
-                    # 가슴 클래스(1, 2)만 필터링
+                    # Keep chest classes (1, 2) only
                     if mapped_cls in [self.BREAST_F, self.BREAST_M]:
                         detections.append({
-                            'box': box,  # [x1, y1, x2, y2] 형태
+                            'box': box,  # [x1, y1, x2, y2]
                             'confidence': score,
                             'class': mapped_cls
                         })
@@ -349,7 +363,7 @@ class BodybuildingExperiment:
             return []
 
     def detect_breast(self, img, img_path):
-        """엔진 선택에 따른 가슴 검출 통합 인터페이스"""
+        """Unified chest detection interface for the selected primary detector."""
         if self.detector_type == 'yolo':
             detections = self._detect_with_yolo(img)
         else:
@@ -358,13 +372,12 @@ class BodybuildingExperiment:
         if not detections:
             return None, None
 
-        # 가장 신뢰도가 높은 결과 반환
+        # Return the detection with the highest confidence
         best = max(detections, key=lambda x: x['confidence'])
         return best['box'], best['class']
 
-    # ... [detect_faces, get_pose_keypoints, match_face_to_chest 등 기존 메서드는 동일] ...
-
     def detect_faces(self, img):
+        """Detect faces with YOLOv8l-face and return their boxes and confidences."""
         results = self.face_model(img, verbose=False)[0]
         if len(results.boxes) == 0: return []
         faces = []
@@ -373,11 +386,19 @@ class BodybuildingExperiment:
         return faces
 
     def get_pose_keypoints(self, img):
+        """Estimate the 17 COCO keypoints (x, y, conf) of every person with YOLOv8-pose."""
         results = self.pose_model(img, verbose=False)[0]
         if len(results.keypoints.data) == 0: return []
         return [kp.cpu().numpy() for kp in results.keypoints.data]
 
     def match_face_to_chest(self, chest_box, faces, all_keypoints):
+        """Return the face that belongs to the same person as the detected chest.
+
+        A single face is matched directly. Otherwise, for each skeleton with reliable
+        shoulders (keypoints 5, 6) and nose (keypoint 0), the face closest to the nose is
+        considered, and the skeleton whose shoulder midpoint is closest to the chest wins.
+        Returns None when no face can be matched (fallback to the detector decision).
+        """
         if len(faces) == 1: return faces[0]
         if not all_keypoints: return None
         chest_center_x = (chest_box[0] + chest_box[2]) / 2
@@ -385,21 +406,28 @@ class BodybuildingExperiment:
         best_match, min_distance = None, float('inf')
         for keypoints in all_keypoints:
             if len(keypoints) < 13: continue
+            # Both shoulders must exceed the keypoint confidence threshold (0.5)
             if keypoints[5][2] > 0.5 and keypoints[6][2] > 0.5:
                 shoulder_x = (keypoints[5][0] + keypoints[6][0]) / 2
                 shoulder_y = (keypoints[5][1] + keypoints[6][1]) / 2
+                # Distance between the shoulder midpoint and the chest center
                 dist = np.sqrt((shoulder_x - chest_center_x) ** 2 + (shoulder_y - chest_center_y) ** 2)
                 if keypoints[0][2] > 0.5:
                     nx, ny = keypoints[0][0], keypoints[0][1]
                     for face in faces:
                         fb = face['box']
                         fcx, fcy = (fb[0] + fb[2]) / 2, (fb[1] + fb[3]) / 2
+                        # Face must lie near the nose keypoint of the same skeleton
                         f_dist = np.sqrt((nx - fcx) ** 2 + (ny - fcy) ** 2)
                         if f_dist < 100 and dist < min_distance:
                             min_distance, best_match = dist, face
         return best_match
 
     def classify_gender_from_face(self, img, face_box):
+        """Classify the perceived gender of a face crop with DeepFace.
+
+        Returns (dominant_gender, confidence in [0, 1]) or ('Unknown', 0.0) on failure.
+        """
         try:
             x1, y1, x2, y2 = map(int, face_box)
             face_img = img[max(0, y1):min(img.shape[0], y2), max(0, x1):min(img.shape[1], x2)]
@@ -414,6 +442,7 @@ class BodybuildingExperiment:
             return 'Unknown', 0.0
 
     def draw_results(self, img, gender, face_box, chest_box, breast_class, source='breast', confidence=None):
+        """Draw the matched face box (yellow) and the chest box (red: female, blue: male)."""
         if face_box is not None:
             x1, y1, x2, y2 = map(int, face_box)
             cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 255), 2)
@@ -429,7 +458,7 @@ class BodybuildingExperiment:
         return img
 
     def run_experiment(self):
-        """전체 파이프라인 실행 및 상세 비교 통계 출력 (시간 측정 포함)"""
+        """Run the full pipeline on all images and print detailed statistics (including timing)."""
         image_files = [f for f in os.listdir(self.input_path)
                        if f.lower().endswith(('.jpg', '.png', '.jpeg', '.webp'))]
 
@@ -438,12 +467,12 @@ class BodybuildingExperiment:
             print("❌ 분석할 이미지가 없습니다.")
             return
 
-        # --- 통계 카운터 ---
+        # --- Statistics counters ---
         model_man, model_woman = 0, 0
         final_man, final_woman = 0, 0
         unknown_count = 0
 
-        # --- 시간 측정 시작 ---
+        # --- Start timing ---
         start_time = time.time()
 
         print(f"\n🚀 {self.detector_type.upper()} 엔진 분석 시작")
@@ -458,7 +487,7 @@ class BodybuildingExperiment:
                 continue
 
             try:
-                # 1단계: 가슴 검출
+                # Stage 1: chest detection
                 chest_box, breast_class = self.detect_breast(img, img_path)
 
                 if chest_box is None:
@@ -466,18 +495,19 @@ class BodybuildingExperiment:
                     cv2.imwrite(os.path.join(self.folders['Unknown'], img_name), img)
                     continue
 
-                # 모델 검출 결과 카운트
+                # Count the primary detector decision (baseline)
                 gender_from_model = self.breast_class_to_gender(breast_class)
                 if gender_from_model == 'Man':
                     model_man += 1
                 elif gender_from_model == 'Woman':
                     model_woman += 1
 
-                # 2단계: 얼굴 및 성별 분석
+                # Stage 2: pose-guided face matching and gender classification
                 faces = self.detect_faces(img)
                 matched_face = self.match_face_to_chest(chest_box, faces,
                                                         self.get_pose_keypoints(img)) if faces else None
 
+                # Fallback rule: keep the detector decision unless overridden below
                 final_gender = gender_from_model
                 gender_source = 'breast'
                 face_box, face_conf = None, None
@@ -485,11 +515,12 @@ class BodybuildingExperiment:
                 if matched_face:
                     g_face, conf = self.classify_gender_from_face(img, matched_face['box'])
                     face_box, face_conf = matched_face['box'], conf
+                    # Override the detector decision only when the gender confidence >= tau
                     if conf >= self.DEEPFACE_CONFIDENCE_THRESHOLD:
                         final_gender = g_face
                         gender_source = 'face'
 
-                # 최종 결과 카운트
+                # Count the final decision
                 if final_gender == 'Man':
                     final_man += 1
                 elif final_gender == 'Woman':
@@ -497,7 +528,7 @@ class BodybuildingExperiment:
                 else:
                     unknown_count += 1
 
-                # 결과 저장
+                # Save the annotated result
                 processed = self.draw_results(img.copy(), final_gender, face_box, chest_box, breast_class,
                                               gender_source, face_conf)
                 cv2.imwrite(os.path.join(self.folders[final_gender], img_name), processed)
@@ -506,13 +537,13 @@ class BodybuildingExperiment:
                 unknown_count += 1
                 cv2.imwrite(os.path.join(self.folders['Unknown'], img_name), img)
 
-        # --- 시간 측정 종료 ---
+        # --- Stop timing ---
         end_time = time.time()
         total_duration = end_time - start_time
         avg_time = total_duration / total_count if total_count > 0 else 0
 
         # ==========================================
-        # 최종 통계 리포트 출력
+        # Final statistics report
         # ==========================================
         print("\n" + "=" * 60)
         print("📊 보디빌딩 실험 최종 통계 리포트")
@@ -540,69 +571,69 @@ class BodybuildingExperiment:
 
 
 
-# --- 설정 영역 ---
-ANNOTATIONS_CSV = 'annotations.csv'  # 어노테이션 파일 경로
-SOURCE_IMAGES = './images'  # 전체 원본 이미지가 들어있는 폴더
-TARGET_DIR = './only_male_breast'  # 남성 가슴 이미지만 저장할 폴더
+# --- Settings ---
+ANNOTATIONS_CSV = 'annotations.csv'  # Annotation file path
+SOURCE_IMAGES = './images'  # Folder containing all source images
+TARGET_DIR = './only_male_breast'  # Output folder for male-chest images only
 # ----------------
 
 
 if __name__ == "__main__":
-    # --- 설정 영역 ---
-    MODEL_PATH = 'best.pt'  # 학습된 모델 파일 경로
-    SOURCE_IMAGE_DIR = './images'  # 검출을 진행할 원본 이미지 폴더 경로
+    # --- Settings ---
+    MODEL_PATH = 'best.pt'  # Trained chest detector weights
+    SOURCE_IMAGE_DIR = './images'  # Source image folder for detection
 
-    OUTPUT_DIR = './runs/nude_predict'  # 결과 이미지가 저장될 루트 폴더
+    OUTPUT_DIR = './runs/nude_predict'  # Root folder for result images
 
-    TRAIN_SOURCE_IMAGE_DIR = './male_breast'  # 검출을 진행할 원본 이미지 폴더 경로
-    AI_SOURCE_IMAGE_DIR = './AI'  # 검출을 진행할 원본 이미지 폴더 경로
-    TRAIN_OUTPUT_DIR = './runs/train_predict'  # 결과 이미지가 저장될 루트 폴더
+    TRAIN_SOURCE_IMAGE_DIR = './male_breast'  # Source image folder for detection
+    AI_SOURCE_IMAGE_DIR = './AI'  # Generative-AI image folder
+    TRAIN_OUTPUT_DIR = './runs/train_predict'  # Root folder for result images
 
-    # ----------------D
-
-    NUDE_DIR = './runs/predict'  # 결과 이미지가 저장될 루트 폴더
-
-    # --- 설정 영역 ---
-    ANNOTATIONS_CSV = 'C:/Users/kyj/Downloads/DETECTOR_AUTO_GENERATED_DATA/annotations.csv'  # 어노테이션 파일 경로
-    SOURCE_IMAGES = 'C:/Users/kyj/Downloads/DETECTOR_AUTO_GENERATED_DATA/images'  # 전체 원본 이미지가 들어있는 폴더
-    TARGET_DIR = 'C:/Users/kyj/Downloads/DETECTOR_AUTO_GENERATED_DATA/only_male_breast'  # 남성 가슴 이미지만 저장할 폴더
     # ----------------
 
-    # YOLO 학습모델
+    NUDE_DIR = './runs/predict'  # Root folder for NudeNet result images
+
+    # --- NudeNet Detector Auto-Generated Data paths ---
+    ANNOTATIONS_CSV = 'C:/Users/kyj/Downloads/DETECTOR_AUTO_GENERATED_DATA/annotations.csv'  # Annotation file path
+    SOURCE_IMAGES = 'C:/Users/kyj/Downloads/DETECTOR_AUTO_GENERATED_DATA/images'  # Folder containing all source images
+    TARGET_DIR = 'C:/Users/kyj/Downloads/DETECTOR_AUTO_GENERATED_DATA/only_male_breast'  # Output folder for male-chest images only
+    # ----------------
+
+    # YOLOv8 baseline detector
     # run_inference(MODEL_PATH, AI_SOURCE_IMAGE_DIR, OUTPUT_DIR)
     # run_inference(MODEL_PATH, TRAIN_SOURCE_IMAGE_DIR, TRAIN_OUTPUT_DIR)
 
-    # nudenet model
+    # NudeNet baseline detector
     # run_nudenet_detection(AI_SOURCE_IMAGE_DIR, NUDE_DIR)
 
-    # 남자가슴만 따로 뽑음
+    # Extract male-chest images only
     # extract_male_breast_images(ANNOTATIONS_CSV, SOURCE_IMAGES, TARGET_DIR)
 
-    # 이미지 다운로드
+    # Download images from Unsplash
     # download_images()
 
-    # 다운로드 받은 이미지중 쓸만한거 필터링
+    # Keep only usable images (face + chest detected) from the downloaded set
     # filter_adult_content_images(
     #    source_folder='Z:/99.KCI음란물_학습데이터셋/YOLOv8 학습한 데이터셋/test/images',
     #    output_folder='./filtered_results_NUDENET_TEST',
-    #    face_model_path='yolov8l-face.pt',  # 얼굴 검출 모델 파일명
-    #    breast_model_path='best.pt'  # 학습된 가슴 검출 모델 파일명
+    #    face_model_path='yolov8l-face.pt',  # Face detector weights
+    #    breast_model_path='best.pt'  # Trained chest detector weights
     # )
 
-    # 이미지 300 장씩 추출함.
-    # 이 폴더에 있는 이미지를가지고, 1. 가슴검출(여자면 빨간색, 남자면 파란색) 2. 얼굴검출
+    # 300 images are sampled per class.
+    # For each image in the folder: 1. chest detection (red: female, blue: male) 2. face detection
 
-    #INPUT_DIR = 'filtered_results_NUDENET_TEST'  # 수집한 데이터 폴더 여자
-    INPUT_DIR = 'MALE_DATASETS_300'  # 수집한 데이터 폴더 남자
-    OUTPUT_DIR = '_OUT_results_FILTERED'  # 결과 저장 폴더
+    #INPUT_DIR = 'filtered_results_NUDENET_TEST'  # Female dataset
+    INPUT_DIR = 'MALE_DATASETS_300'  # Male dataset
+    OUTPUT_DIR = '_OUT_results_FILTERED'  # Output folder
 
 
-    # 클래스 인스턴스 생성 및 실행
+    # Create the experiment and run it
     experiment = BodybuildingExperiment(
         input_path=INPUT_DIR,
         output_path=OUTPUT_DIR,
         confidence_threshold=0.6,
-        detector_type='yolo',  # 'yolo'로 변경 시 기존 파인튜닝 모델 사용
+        detector_type='yolo',  # 'yolo' uses the fine-tuned YOLOv8 model, 'nudenet' uses NudeNet
         breast_model_path='best.pt'
     )
 

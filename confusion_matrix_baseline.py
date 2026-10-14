@@ -2,14 +2,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
-# 스타일 설정
+# Plot style
 sns.set_theme(style="white")
 plt.rcParams.update({'font.size': 13, 'font.family': 'sans-serif'})
 
 def plot_confusion_matrix(data, title, filename):
+    """Draw a 2x2 confusion matrix heatmap for a baseline detector and save it (Fig. 3)."""
     plt.figure(figsize=(7, 6))
-    # Baseline은 구분을 위해 붉은색 계열(Reds) 또는 다른 색상을 권장하지만,
-    # 비교를 위해 같은 파란색(Blues)으로 통일하거나 보라색(Purples)을 사용해도 좋습니다.
+    # Baselines use a grey colormap to distinguish them from the proposed method (blue)
     sns.heatmap(data, annot=True, fmt='d', cmap='Greys', cbar=False,
                 xticklabels=['Pred Female', 'Pred Male'],
                 yticklabels=['Actual Female', 'Actual Male'],
@@ -25,24 +25,24 @@ def plot_confusion_matrix(data, title, filename):
     plt.show()
 
 # =============================================================
-# 1. YOLO Baseline (Object Detection Only)
+# 1. YOLO baseline (object detection only)
 # Female(300): TP=299, FN=1 | Male(300): TN=143, FP=147, Miss=10
 # =============================================================
 yolo_baseline_cm = np.array([
     [299, 1],    # Actual Female
-    [147, 143]   # Actual Male (FP=147, TN=143 / Miss 10 제외)
+    [147, 143]   # Actual Male (FP=147, TN=143 / 10 missed detections excluded)
 ])
 
 # =============================================================
-# 2. NudeNet Baseline (Object Detection Only)
+# 2. NudeNet baseline (object detection only)
 # Female(300): TP=279, FN=3, Miss=18 | Male(300): TN=133, FP=135, Miss=32
 # =============================================================
 nudenet_baseline_cm = np.array([
-    [279, 3],    # Actual Female (Miss 18 제외)
-    [135, 133]   # Actual Male (FP=135, TN=133 / Miss 32 제외)
+    [279, 3],    # Actual Female (18 missed detections excluded)
+    [135, 133]   # Actual Male (FP=135, TN=133 / 32 missed detections excluded)
 ])
 
-# --- 그래프 생성 ---
+# --- Generate the figures ---
 print("🚀 YOLO Baseline 혼동 행렬 생성 중...")
 plot_confusion_matrix(yolo_baseline_cm, 'YOLO Baseline (OD Only) Confusion Matrix', 'cm_yolo_baseline.png')
 

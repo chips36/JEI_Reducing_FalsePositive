@@ -6,32 +6,40 @@ import time
 
 
 class MultiPersonExperiment:
+    """Multi-person face-chest matching experiment (Table 1).
+
+    Compares three face assignment strategies on images with two or more people:
+      - map1: detection order / confidence-based (first face returned by the detector)
+      - map2: center distance-based (face closest to the chest center)
+      - map3: proposed pose-guided matching (YOLOv8-pose skeleton)
+    """
+
     def __init__(self, input_path, output_root, confidence_threshold=0.5,
                  breast_model_path='best.pt', face_model_path='yolov8l-face.pt'):
         self.input_path = input_path
         self.output_root = output_root
 
-        # 1. 모델 로드
+        # 1. Load the models
         self.breast_model = YOLO(breast_model_path)
         print(f"🚀 YOLO 가슴 모델 로드 완료: {breast_model_path}")
         self.face_model = YOLO(face_model_path)
         print(f"🚀 YOLO 얼굴 모델 로드 완료: {face_model_path}")
-        # 포즈 모델 로드
+        # Load the pose model
         self.pose_model = YOLO('yolov8n-pose.pt')
         print("🚀 YOLO 포즈 모델 로드 완료: yolov8n-pose.pt")
 
         self.CONFIDENCE_THRESHOLD = confidence_threshold
 
-        # COCO 키포인트 연결 쌍 (Map 3 전용 스켈레톤 구조 정의)
+        # COCO keypoint connection pairs (skeleton drawn for map3 only)
         self.SKELETON_EDGES = [
-            (0, 1), (0, 2), (1, 3), (2, 4),  # 얼굴 (코-눈-귀)
-            (5, 6),  # 어깨 라인
-            (5, 7), (7, 9), (6, 8), (8, 10),  # 팔 (어깨-팔꿈치-손목)
-            (5, 11), (6, 12), (11, 12),  # 상체 바디 (어깨-골반)
-            (11, 13), (13, 15), (12, 14), (14, 16)  # 다리 (골반-무릎-발목)
+            (0, 1), (0, 2), (1, 3), (2, 4),  # Face (nose-eyes-ears)
+            (5, 6),  # Shoulder line
+            (5, 7), (7, 9), (6, 8), (8, 10),  # Arms (shoulder-elbow-wrist)
+            (5, 11), (6, 12), (11, 12),  # Torso (shoulders-hips)
+            (11, 13), (13, 15), (12, 14), (14, 16)  # Legs (hip-knee-ankle)
         ]
 
-        # 결과 저장 폴더 초기화 (전략별 분리)
+        # Create one output folder per strategy
         self.save_folders = {
             'map1': os.path.join(output_root, 'map1_first_array'),
             'map2': os.path.join(output_root, 'map2_min_distance'),
@@ -41,7 +49,7 @@ class MultiPersonExperiment:
             os.makedirs(folder, exist_ok=True)
 
     def detect_breast(self, img):
-        """가슴 모델 추론 (Belly 등을 제외하고 오직 Breast만 필터링)"""
+        """Run the chest detector and keep chest classes only (belly etc. are excluded)."""
         results = self.breast_model(img, conf=self.CONFIDENCE_THRESHOLD, verbose=False)[0]
         if len(results.boxes) == 0:
             return None
@@ -54,19 +62,19 @@ class MultiPersonExperiment:
         for box, conf, cls in zip(boxes, confidences, classes):
             cls_int = int(cls)
 
-            # 0: BELLY 제외, 1: BREAST_F, 2: BREAST_M 오직 가슴만 필터링
+            # 0: BELLY excluded; keep only 1: BREAST_F and 2: BREAST_M
             if cls_int in [1, 2]:
                 valid_detections.append({'box': box, 'class': cls_int, 'confidence': conf})
 
         if not valid_detections:
             return None
 
-        # 가슴 객체 중 가장 신뢰도가 높은 최종 가슴 1개 반환
+        # Return the single chest detection with the highest confidence
         best = max(valid_detections, key=lambda x: x['confidence'])
         return best
 
     def detect_faces(self, img):
-        """얼굴 모델 추론"""
+        """Run the face detector and return face boxes and confidences."""
         results = self.face_model(img, verbose=False)[0]
         if len(results.boxes) == 0: return []
         faces = []
@@ -75,23 +83,26 @@ class MultiPersonExperiment:
         return faces
 
     def get_pose_keypoints(self, img):
-        """포즈 모델 추론 (멀티 퍼슨 지원)"""
+        """Run the pose model (multi-person) and return per-person keypoints (x, y, conf)."""
         results = self.pose_model(img, verbose=False)[0]
         if len(results.keypoints.data) == 0: return []
         return [kp.cpu().numpy() for kp in results.keypoints.data]
 
     def _get_pose_score(self, chest_center, face_center, keypoints, img_shape):
-        """논문 제안 알고리즘 기반 포즈 점수 계산"""
+        """Score a (skeleton, face) pair for the chest with the proposed pose-guided rule.
+
+        Higher is better; -1.0 means the skeleton has too few keypoints.
+        """
         if len(keypoints) < 13: return -1.0
 
-        # 1. 목-얼굴 거리 점수 (SD)
+        # 1. Head-face score: proximity between the nose keypoint and the face center
         neck_score = -1.0
         if keypoints[0][2] > 0.5:
             neck_center = (keypoints[0][0], keypoints[0][1])
             neck_dist = np.sqrt((neck_center[0] - face_center[0]) ** 2 + (neck_center[1] - face_center[1]) ** 2)
             neck_score = 1.0 / (neck_dist + 1.0)
 
-        # 2. 숄더-가슴 거리 점수 (LD)
+        # 2. Shoulder-chest score: proximity between the shoulder midpoint and the chest center
         shoulder_score = -1.0
         if keypoints[5][2] > 0.5 and keypoints[6][2] > 0.5:
             shoulder_center_x = (keypoints[5][0] + keypoints[6][0]) / 2
@@ -103,7 +114,7 @@ class MultiPersonExperiment:
 
         base_score = neck_score + shoulder_score
 
-        # 3. 멀티 퍼슨 가중치
+        # 3. Multi-person weight: favor chests closer to the image center
         h, w = img_shape[:2]
         img_center = (w / 2, h / 2)
         dist_to_img_center = np.sqrt((chest_center[0] - img_center[0]) ** 2 + (chest_center[1] - img_center[1]) ** 2)
@@ -112,53 +123,54 @@ class MultiPersonExperiment:
         return base_score * center_weight
 
     def draw_skeleton(self, img, keypoints):
-        """Map 3 전용: 선택된 대상의 포즈 스켈레톤 선과 관절을 굵게 그리는 함수"""
-        # 1. 관절 점(Keypoints) 그리기
+        """Draw the selected person's pose skeleton with thick lines and joints (map3 only)."""
+        # 1. Draw keypoints
         for kp in keypoints:
             x, y, conf = kp
-            if conf > 0.5:  # 신뢰도가 50% 이상인 관절만 표시
-                cv2.circle(img, (int(x), int(y)), 7, (0, 255, 0), -1)  # 초록색 점
+            if conf > 0.5:  # Draw only keypoints with confidence above 0.5
+                cv2.circle(img, (int(x), int(y)), 7, (0, 255, 0), -1)  # Green dot
 
-        # 2. 뼈대 선(Skeleton Edges) 그리기
+        # 2. Draw skeleton edges
         for edge in self.SKELETON_EDGES:
             pt1_idx, pt2_idx = edge
             if keypoints[pt1_idx][2] > 0.5 and keypoints[pt2_idx][2] > 0.5:
                 pt1 = (int(keypoints[pt1_idx][0]), int(keypoints[pt1_idx][1]))
                 pt2 = (int(keypoints[pt2_idx][0]), int(keypoints[pt2_idx][1]))
-                cv2.line(img, pt1, pt2, (255, 0, 255), 4)  # 보라색 선 (굵기 4)
+                cv2.line(img, pt1, pt2, (255, 0, 255), 4)  # Magenta line (thickness 4)
         return img
 
     def compare_mapping_strategies(self, img, img_name):
-        """세 가지 매핑 전략을 비교하고 결과 저장 (Map 3에만 포즈 스켈레톤 드로잉 적용)"""
+        """Apply the three mapping strategies to one image and save the results
+        (the pose skeleton is drawn for map3 only)."""
         processed_images = {}
 
         print(f"\n[시작] 🎯 {img_name} 분석 중...")
 
-        # 1단계: 가슴 검출 (Belly 완전 필터링됨)
+        # Stage 1: chest detection (belly fully filtered out)
         chest = self.detect_breast(img)
         print(f"  -> 1. 가슴(Breast) 검출 완료 (결과: {'성공' if chest else '없음'})")
         if chest is None: return None
 
-        # 2단계: 얼굴 검출
+        # Stage 2: face detection
         faces = self.detect_faces(img)
         print(f"  -> 2. 얼굴 검출 완료 (발견된 얼굴: {len(faces)}개)")
         if not faces: return None
 
-        # 3단계: 포즈 키포인트 검출
+        # Stage 3: pose keypoint estimation
         all_keypoints = self.get_pose_keypoints(img)
         print(f"  -> 3. 포즈 연산 완료 (발견된 사람 포즈: {len(all_keypoints)}개)")
 
-        # 각 전략별 데이터 딕셔너리 구조화
+        # Per-strategy result structure
         mapping_results = {
             'map1': {'face': faces[0]},
             'map2': {'face': None},
-            'map3': {'face': None, 'kp': None}  # Map 3에만 kp 구조 유지
+            'map3': {'face': None, 'kp': None}  # Only map3 keeps the matched keypoints
         }
 
         chest_box = chest['box']
         chest_center = ((chest_box[0] + chest_box[2]) / 2, (chest_box[1] + chest_box[3]) / 2)
 
-        # --- [실험 2: Map 2 - Min Distance] ---
+        # --- [Strategy 2: map2 - minimum center distance] ---
         min_distance = float('inf')
         closest_face = None
         for face in faces:
@@ -170,11 +182,12 @@ class MultiPersonExperiment:
 
         mapping_results['map2']['face'] = closest_face
 
-        # --- [실험 3: Map 3 - Pose Proposed (제안 기법)] ---
+        # --- [Strategy 3: map3 - proposed pose-guided matching] ---
         best_pose_match = None
         best_kp_match = None
         if all_keypoints:
             best_score = -2.0
+            # Evaluate every (skeleton, face) pair and keep the best-scoring one
             for keypoints in all_keypoints:
                 for face in faces:
                     fb = face['box']
@@ -186,7 +199,7 @@ class MultiPersonExperiment:
             mapping_results['map3']['face'] = best_pose_match
             mapping_results['map3']['kp'] = best_kp_match
 
-        # 4단계: 결과 이미지 그리기 및 저장
+        # Stage 4: draw and save the result images
         print("  -> 4. 실험 결과 개별 시각화 및 저장 중...")
         for key, result in mapping_results.items():
             face_match = result['face']
@@ -194,17 +207,17 @@ class MultiPersonExperiment:
             if face_match:
                 draw_img = img.copy()
 
-                # ⭐ [핵심 분기] Map 3일 때만 포즈 스켈레톤 선을 드로잉합니다. (Map 1, 2는 안 그리기)
+                # Draw the pose skeleton for map3 only (not for map1 / map2)
                 if key == 'map3' and result.get('kp') is not None:
                     draw_img = self.draw_skeleton(draw_img, result['kp'])
 
-                # 얼굴 박스 드로잉 (노란색)
+                # Face box (yellow)
                 fx1, fy1, fx2, fy2 = map(int, face_match['box'])
                 cv2.rectangle(draw_img, (fx1, fy1), (fx2, fy2), (0, 255, 255), 2)
                 f_lbl = f"Face ({face_match['confidence']:.2f})"
                 cv2.putText(draw_img, f_lbl, (fx1, fy1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
-                # 가슴 박스 드로잉 (1이면 Female:빨간색, 2이면 Male:파란색)
+                # Chest box (class 1 = female: red, class 2 = male: blue)
                 cx1, cy1, cx2, cy2 = map(int, chest['box'])
                 color = (0, 0, 255) if chest['class'] == 1 else (255, 0, 0)
                 label = "Female Breast" if chest['class'] == 1 else "Male Breast"
@@ -213,7 +226,7 @@ class MultiPersonExperiment:
                 c_txt = f"{label} | Conf: {chest['confidence']:.2f}"
                 cv2.putText(draw_img, c_txt, (cx1, cy1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-                # 전략 타입 명시 (MAP1, MAP2, MAP3)
+                # Strategy label (MAP1, MAP2, MAP3)
                 cv2.putText(draw_img, key.upper(), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
                             cv2.LINE_AA)
 
@@ -225,7 +238,7 @@ class MultiPersonExperiment:
         return processed_images
 
     def run_experiment(self):
-        """전체 실험 파이프라인 실행 및 상세 비교 통계 출력"""
+        """Run the experiment on all images (recursively) and print per-strategy statistics."""
         valid_extensions = ('.jpg', '.png', '.jpeg', '.webp')
         image_files = []
 
@@ -292,14 +305,14 @@ class MultiPersonExperiment:
 
 
 if __name__ == "__main__":
-    # --- 설정 영역 ---
-    INPUT_DIR = './ai_gen'
+    # --- Settings ---
+    INPUT_DIR = './ai_gen'  # Multi-person images generated with Google Gemini
     OUTPUT_DIR = './_OUT_exp_results_AI_GEN'
 
-    BREAST_MODEL = 'best.pt'
-    FACE_MODEL = 'yolov8l-face.pt'
+    BREAST_MODEL = 'best.pt'  # Fine-tuned YOLOv8 chest detector
+    FACE_MODEL = 'yolov8l-face.pt'  # YOLOv8l-face detector
 
-    CONF_THRESHOLD = 0.5
+    CONF_THRESHOLD = 0.5  # Chest detection confidence threshold
     # ----------------
 
     experiment = MultiPersonExperiment(

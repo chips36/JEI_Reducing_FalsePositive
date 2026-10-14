@@ -2,17 +2,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
-# 1. 공통 설정 및 색상 정의
+# 1. Common settings and colors
 thresholds = [0.6, 0.7, 0.8, 0.9, 1.0]
 sns.set_theme(style="whitegrid")
 plt.rcParams.update({'font.size': 12, 'font.family': 'sans-serif'})
 
-# 대표님, 색상을 여기서 전역 변수로 관리하면 수정이 훨씬 편합니다.
+# Colors are defined globally so they are easy to change
 COLOR_YOLO = '#2ca02c'    # Green
 COLOR_NUDENET = '#ff7f0e' # Orange
 
 # ==========================================
-# [데이터 세팅 - YOLO] (총 300장, 10장 미검출 반영)
+# [Data - YOLO] (300 images per class, 10 male images not detected)
 # ==========================================
 y_f_total, y_m_total = 300, 300
 y_m_tn = np.array([281, 279, 274, 269, 143])
@@ -20,11 +20,11 @@ y_m_fp = np.array([9, 11, 16, 21, 147])
 y_f_tp = np.array([211, 237, 269, 293, 299])
 y_f_fn = np.array([89, 63, 31, 7, 1])
 
-y_m_base = 143 # YOLO 남자 Baseline
-y_f_base = 299 # YOLO 여자 Baseline
+y_m_base = 143 # YOLO male baseline
+y_f_base = 299 # YOLO female baseline
 
 # ==========================================
-# [데이터 세팅 - NUDENET] (총 300장)
+# [Data - NUDENET] (300 images per class)
 # ==========================================
 n_f_total, n_m_total = 300, 300
 n_m_tn = np.array([261, 256, 252, 250, 133])
@@ -32,23 +32,24 @@ n_m_fp = np.array([7, 12, 16, 18, 135])
 n_f_tp = np.array([183, 198, 223, 254, 279])
 n_f_fn = np.array([99, 84, 59, 28, 3])
 
-n_m_base = 133 # NudeNet 남자 Baseline
-n_f_base = 279 # NudeNet 여자 Baseline
+n_m_base = 133 # NudeNet male baseline
+n_f_base = 279 # NudeNet female baseline
 
 def save_plot(filename):
+    """Save the current figure at 300 dpi and display it."""
     plt.tight_layout()
     plt.savefig(filename, dpi=300)
     print(f"📈 저장 완료: {filename}")
     plt.show()
 
 # ---------------------------------------------------------
-# 1. 남성 데이터셋 비교
+# 1. Male dataset comparison
 # ---------------------------------------------------------
 plt.figure(figsize=(10, 6))
 plt.plot(thresholds, y_m_tn, marker='o', color=COLOR_YOLO, linewidth=3, label='YOLO + Face (Miss: 10)')
 plt.plot(thresholds, n_m_tn, marker='s', color=COLOR_NUDENET, linewidth=3, label='NudeNet + Face (Miss: 32)')
 
-# Baseline 선도 동일한 색상 계열로 유지하여 혼동을 방지합니다.
+# Baselines use the same color as their pipeline to avoid confusion
 plt.axhline(y=y_m_base, color=COLOR_YOLO, linestyle='--', alpha=0.5, label='YOLO Baseline')
 plt.axhline(y=n_m_base, color=COLOR_NUDENET, linestyle='--', alpha=0.5, label='NudeNet Baseline')
 
@@ -58,7 +59,7 @@ plt.legend(frameon=True, shadow=True)
 save_plot('1_male_comparison_fixed_colors.png')
 
 # ---------------------------------------------------------
-# 2. 여성 데이터셋 비교
+# 2. Female dataset comparison
 # ---------------------------------------------------------
 plt.figure(figsize=(10, 6))
 plt.plot(thresholds, y_f_tp, marker='o', color=COLOR_YOLO, linewidth=3, label='YOLO + Face (Miss: 0)')
@@ -73,13 +74,13 @@ plt.legend(frameon=True, shadow=True)
 save_plot('2_female_comparison_fixed_colors.png')
 
 # ---------------------------------------------------------
-# 3. 전체 시스템 정확도 (Accuracy) 비교
+# 3. Overall system accuracy comparison
 # ---------------------------------------------------------
 y_total_acc = (y_f_tp + y_m_tn) / (y_f_total + y_m_total)
 n_total_acc = (n_f_tp + n_m_tn) / (n_f_total + n_m_total)
 
 plt.figure(figsize=(10, 6.5))
-# YOLO는 굵은 Green 선, NudeNet은 굵은 Orange 선으로 강조합니다.
+# YOLO in thick green, NudeNet in thick orange
 plt.plot(thresholds, y_total_acc, marker='D', color=COLOR_YOLO, linewidth=4, markersize=10, label='YOLO')
 plt.plot(thresholds, n_total_acc, marker='X', color=COLOR_NUDENET, linewidth=4, markersize=10, label='NudeNet')
 
