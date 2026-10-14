@@ -24,14 +24,14 @@ decision is kept, so the secondary stage can never add a block.
 
 | File | Description | Paper |
 |------|-------------|-------|
-| `main.py` | Full pipeline (`BodybuildingExperiment`) for static-image evaluation with a YOLOv8 or NudeNet primary detector; also contains data preparation utilities (Unsplash collection, NudeNet annotation filtering, baseline inference). | Sec. 3, Sec. 4.1-4.2 |
-| `poset_test.py` | Multi-person face-chest matching experiment comparing detection confidence-based, center distance-based, and pose-guided assignment. | Sec. 3.3, Table 1, Fig. 2 |
-| `confusion_matrix_baseline.py` | Confusion matrices of the YOLOv8 / NudeNet baselines. | Fig. 3 |
-| `confusion_matrix_proposed_method.py` | Confusion matrices of the proposed method at `tau = 0.90`. | Fig. 3 |
-| `confusion_matrix.py` | Female / male / combined confusion matrices for YOLOv8 + proposed method. | Fig. 3 (supplementary) |
-| `plot_include_nudenet.py` | Threshold sweep plots for YOLOv8 and NudeNet pipelines. | Table 3 |
-| `plot.py` | Threshold sweep plots and metrics for the YOLOv8 pipeline. | Table 3 (supplementary) |
-| `reddit.py` | Collection script for WWE broadcast videos used in the video evaluation. | Sec. 4.3.1 |
+| `static_image_evaluation.py` | Full pipeline (`BodybuildingExperiment`) for static-image evaluation with a YOLOv8 or NudeNet primary detector; also contains data preparation utilities (Unsplash collection, NudeNet annotation filtering, baseline inference). | Sec. 3, Sec. 4.1-4.2 |
+| `table1_multi_person_matching.py` | Multi-person face-chest matching experiment comparing detection confidence-based, center distance-based, and pose-guided assignment. | Sec. 3.3, Table 1, Fig. 2 |
+| `fig3_confusion_matrix_baseline.py` | Confusion matrices of the YOLOv8 / NudeNet baselines. | Fig. 3 |
+| `fig3_confusion_matrix_proposed.py` | Confusion matrices of the proposed method at `tau = 0.90`. | Fig. 3 |
+| `fig3_confusion_matrix_yolo_combined.py` | Female / male / combined confusion matrices for YOLOv8 + proposed method. | Fig. 3 (supplementary) |
+| `table3_threshold_sweep_yolo_nudenet.py` | Threshold sweep plots for YOLOv8 and NudeNet pipelines. | Table 3 |
+| `table3_threshold_sweep_yolo.py` | Threshold sweep plots and metrics for the YOLOv8 pipeline. | Table 3 (supplementary) |
+| `collect_wwe_videos.py` | Collection script for WWE broadcast videos used in the video evaluation. | Sec. 4.3.1 |
 
 ## Requirements
 
@@ -62,16 +62,16 @@ NudeNet and DeepFace download their own pretrained weights on first use.
 ### Static-image evaluation (Sec. 4.2)
 
 Edit `INPUT_DIR`, `OUTPUT_DIR`, and `detector_type` (`'yolo'` or `'nudenet'`) in the
-`__main__` block of `main.py`, then run:
+`__main__` block of `static_image_evaluation.py`, then run:
 
 ```bash
-python main.py
+python static_image_evaluation.py
 ```
 
 Images are sorted into `man/`, `woman/`, and `unknown/` sub-folders of `OUTPUT_DIR`, and summary
 statistics (baseline vs. final decisions, processing time) are printed.
 
-`main.py` reads the Unsplash API key from an environment variable at import time:
+`static_image_evaluation.py` reads the Unsplash API key from an environment variable at import time:
 
 ```bash
 export UNSPLASH_ACCESS_KEY="<your-unsplash-access-key>"
@@ -80,7 +80,7 @@ export UNSPLASH_ACCESS_KEY="<your-unsplash-access-key>"
 ### Multi-person matching experiment (Table 1)
 
 ```bash
-python poset_test.py
+python table1_multi_person_matching.py
 ```
 
 Results for each assignment strategy are saved to `map1_first_array/`, `map2_min_distance/`,
@@ -89,9 +89,9 @@ and `map3_pose_proposed/` under the output folder.
 ### Figures
 
 ```bash
-python confusion_matrix_baseline.py
-python confusion_matrix_proposed_method.py
-python plot_include_nudenet.py
+python fig3_confusion_matrix_baseline.py
+python fig3_confusion_matrix_proposed.py
+python table3_threshold_sweep_yolo_nudenet.py
 ```
 
 ## Results (independent test set, `tau = 0.90`)
@@ -108,7 +108,7 @@ python plot_include_nudenet.py
 Datasets are not redistributed in this repository.
 
 - **Detector training / female-exposure images:** NudeNet Detector Auto-Generated Data (public).
-- **Male-chest images:** collected via the Unsplash developer API (`download_images()` in `main.py`).
+- **Male-chest images:** collected via the Unsplash developer API (`download_images()` in `static_image_evaluation.py`).
 - **Generative-AI and multi-person images:** generated with Google Gemini.
 - **Video clips:** Unsplash image-to-video clips (Gemini, Veo 3.1) and WWE broadcast segments.
   WWE footage cannot be redistributed due to licensing restrictions.
